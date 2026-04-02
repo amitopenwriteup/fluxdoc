@@ -24,7 +24,13 @@ By the end of this lab you will have a live Flux installation that continuously 
 
 ## Lab Time Plan
 
-
+| Duration | Activity |
+|---|---|
+| 10 min | Prerequisites check & environment setup |
+| 15 min | Step 1: Install the Flux CLI |
+| 10 min | Step 2: Pre-flight checks |
+| 15 min | Step 3: Bootstrap Flux with GitLab |
+| 10 min | Step 4: Verify the installation |
 
 ---
 
@@ -55,15 +61,69 @@ This downloads the correct binary for your OS and architecture, installs it to `
 
 > **TIP:** If you do not have `sudo` access, download the binary manually (see Section 1.3) and place it in a directory on your `$PATH`.
 
+### 1.2 macOS — Homebrew
 
+```bash
+brew install fluxcd/tap/flux
+```
 
+To upgrade an existing installation:
+
+```bash
+brew upgrade fluxcd/tap/flux
+```
+
+### 1.3 Linux — Manual Binary Download
+
+Use this method if the install script is unavailable or you need a specific version:
+
+```bash
+# Set the desired version
+FLUX_VERSION=2.3.0
+
+# Download the binary for Linux amd64
+curl -Lo flux.tar.gz \
+  https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz
+
+# Extract and install
+tar -xzf flux.tar.gz
+chmod +x flux
+sudo mv flux /usr/local/bin/flux
+
+# Clean up
+rm flux.tar.gz
+```
+
+For **ARM64** (e.g., Raspberry Pi, Apple M-series in a Linux VM), replace `linux_amd64` with `linux_arm64`.
+
+### 1.4 Windows — Chocolatey
+
+```powershell
+choco install flux
+```
+
+### 1.5 Windows — Scoop
+
+```powershell
+scoop install flux
+```
+
+### 1.6 Windows — Manual (PowerShell)
+
+```powershell
+$FLUX_VERSION = "2.3.0"
+$url = "https://github.com/fluxcd/flux2/releases/download/v$FLUX_VERSION/flux_${FLUX_VERSION}_windows_amd64.zip"
+Invoke-WebRequest -Uri $url -OutFile flux.zip
+Expand-Archive flux.zip -DestinationPath $env:USERPROFILE\bin
+# Ensure $env:USERPROFILE\bin is in your PATH
+```
 
 ### 1.7 Verify the Installation
 
 After installation, confirm the CLI is accessible and returns a version:
 
 ```bash
-flux --version
+flux version
 ```
 
 Expected output (version numbers will vary):
@@ -175,6 +235,68 @@ flux bootstrap gitlab \
 | `--branch` | Branch Flux will watch and commit to |
 | `--path` | Directory in the repository where Flux writes its config |
 | `--token-auth` | Use token-based authentication (instead of SSH) |
+
+### 3.3a Workaround — Manually Create the Repository First
+
+If bootstrap fails with `404 Not Found` when trying to create the repository under your personal namespace, create the repository manually in GitLab first and then re-run bootstrap.
+
+This is a known issue with personal accounts where the GitLab API returns 404 even with a valid token. Pre-creating the repository bypasses the creation step entirely.
+
+**Option A — Create via GitLab UI (recommended):**
+
+1. Go to [https://gitlab.com/projects/new](https://gitlab.com/projects/new).
+2. Select **Create blank project**.
+3. Set **Project name** to `flux-gitops`.
+4. Set **Visibility** to `Private`.
+5. Check **Initialize repository with a README** — the repository must have at least one commit.
+6. Click **Create project**.
+
+Then re-run bootstrap — Flux will detect the existing repository and skip creation:
+
+```bash
+flux bootstrap gitlab \
+  --owner=<your-gitlab-username> \
+  --repository=flux-gitops \
+  --branch=main \
+  --path=clusters/production \
+  --token-auth
+```
+
+**Option B — Create via GitLab API:**
+
+```bash
+curl -s --request POST \
+  --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "flux-gitops",
+    "visibility": "private",
+    "initialize_with_readme": true
+  }' \
+  https://gitlab.com/api/v4/projects | python3 -m json.tool | grep '"http_url_to_repo"'
+```
+
+Confirm the repository URL in the output, then re-run bootstrap:
+
+```bash
+flux bootstrap gitlab \
+  --owner=<your-gitlab-username> \
+  --repository=flux-gitops \
+  --branch=main \
+  --path=clusters/production \
+  --token-auth
+```
+
+> **NOTE:** The `initialize_with_readme: true` flag is important. Flux cannot bootstrap into a completely empty repository with no commits — it needs an initialised `main` branch to clone from.
+
+> **TIP:** To confirm your exact GitLab username before running bootstrap, run:
+> ```bash
+> curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+>   https://gitlab.com/api/v4/user | python3 -m json.tool | grep '"username"'
+> ```
+> The value returned must match exactly what you pass to `--owner`.
+
+---
 
 ### 3.4 Bootstrap — GitLab Group Repository
 
@@ -377,6 +499,7 @@ source-controller-xxxxxxxxx-xxxxx          1/1     Running   0          2m
 | Symptom | Resolution |
 |---|---|
 | `flux check --pre` fails on RBAC | Ensure your `kubectl` context has cluster-admin or equivalent permissions. Run: `kubectl auth can-i create namespaces --all-namespaces` |
+| Bootstrap fails with `404 Not Found` on repository creation | Personal namespace API restriction. Pre-create the repository manually in GitLab UI or via API with `initialize_with_readme: true`, then re-run bootstrap. See Section 3.3a. |
 | Bootstrap fails with `401 Unauthorized` | Verify `$GITLAB_TOKEN` is exported and has `api`, `read_repository`, and `write_repository` scopes. |
 | Bootstrap fails with `403 Forbidden` | The token may lack permission to create repositories. Check group-level access if using a group namespace. |
 | `flux get source git` shows `READY False` | Check the Kubernetes secret `flux-system` in the `flux-system` namespace contains valid credentials. Re-run bootstrap or recreate the secret. |
