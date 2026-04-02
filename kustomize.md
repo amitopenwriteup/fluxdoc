@@ -40,9 +40,10 @@ cat <<EOF > kind-config.yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
-  - role: control-plane
-  - role: worker
-  - role: worker
+- role: control-plane
+  image: kindest/node:v1.35.1
+- role: worker
+  image: kindest/node:v1.35.1
 EOF
 
 kind create cluster --name kustomize-demo --config kind-config.yaml
