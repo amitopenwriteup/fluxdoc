@@ -63,7 +63,7 @@ This downloads the correct binary for your OS and architecture, installs it to `
 After installation, confirm the CLI is accessible and returns a version:
 
 ```bash
-flux version
+flux --version
 ```
 
 Expected output (version numbers will vary):
