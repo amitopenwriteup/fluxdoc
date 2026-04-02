@@ -24,13 +24,7 @@ By the end of this lab you will have a live Flux installation that continuously 
 
 ## Lab Time Plan
 
-| Duration | Activity |
-|---|---|
-| 10 min | Prerequisites check & environment setup |
-| 15 min | Step 1: Install the Flux CLI |
-| 10 min | Step 2: Pre-flight checks |
-| 15 min | Step 3: Bootstrap Flux with GitLab |
-| 10 min | Step 4: Verify the installation |
+
 
 ---
 
@@ -61,62 +55,8 @@ This downloads the correct binary for your OS and architecture, installs it to `
 
 > **TIP:** If you do not have `sudo` access, download the binary manually (see Section 1.3) and place it in a directory on your `$PATH`.
 
-### 1.2 macOS — Homebrew
 
-```bash
-brew install fluxcd/tap/flux
-```
 
-To upgrade an existing installation:
-
-```bash
-brew upgrade fluxcd/tap/flux
-```
-
-### 1.3 Linux — Manual Binary Download
-
-Use this method if the install script is unavailable or you need a specific version:
-
-```bash
-# Set the desired version
-FLUX_VERSION=2.3.0
-
-# Download the binary for Linux amd64
-curl -Lo flux.tar.gz \
-  https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz
-
-# Extract and install
-tar -xzf flux.tar.gz
-chmod +x flux
-sudo mv flux /usr/local/bin/flux
-
-# Clean up
-rm flux.tar.gz
-```
-
-For **ARM64** (e.g., Raspberry Pi, Apple M-series in a Linux VM), replace `linux_amd64` with `linux_arm64`.
-
-### 1.4 Windows — Chocolatey
-
-```powershell
-choco install flux
-```
-
-### 1.5 Windows — Scoop
-
-```powershell
-scoop install flux
-```
-
-### 1.6 Windows — Manual (PowerShell)
-
-```powershell
-$FLUX_VERSION = "2.3.0"
-$url = "https://github.com/fluxcd/flux2/releases/download/v$FLUX_VERSION/flux_${FLUX_VERSION}_windows_amd64.zip"
-Invoke-WebRequest -Uri $url -OutFile flux.zip
-Expand-Archive flux.zip -DestinationPath $env:USERPROFILE\bin
-# Ensure $env:USERPROFILE\bin is in your PATH
-```
 
 ### 1.7 Verify the Installation
 
