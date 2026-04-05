@@ -1,24 +1,53 @@
 # FluxCD Helm Lab
-### Equivalent to ArgoCD Helm App Deployment (nginx via Bitnami)
+### Deploy nginx via Bitnami Helm Chart
+### Repo: flux-gitops | Cluster: clusters/production
 
 ---
 
-## ArgoCD → FluxCD Mapping
+## Your Repo Structure (Already Bootstrapped)
 
-| ArgoCD | FluxCD | Resource |
-|--------|--------|----------|
-| Settings → Connect Repo (Helm) | `HelmRepository` | `source.toolkit.fluxcd.io/v1beta2` |
-| Application → source.chart | `HelmRelease` | `helm.toolkit.fluxcd.io/v2beta2` |
-| `helm.valueFiles: [values.yaml]` | `ConfigMap` + `valuesFrom` | `v1/ConfigMap` |
-| `project: myproj` | `Kustomization` | `kustomize.toolkit.fluxcd.io/v1` |
-| `syncPolicy.automated.selfHeal: true` | `interval` reconciliation | default Flux behavior |
-| `syncPolicy.automated.prune: false` | `prune: false` | Kustomization spec |
-| `syncOptions: CreateNamespace=true` | `install.createNamespace: true` | HelmRelease spec |
+```
+flux-gitops/
+└── clusters/
+    └── production/
+        └── flux-system/          ← already exists (bootstrap files)
+            ├── gotk-components.yaml
+            ├── gotk-sync.yaml
+            └── kustomization.yaml
+```
+
+Flux is already running. You only need to **add your app manifests** and push to Git.
 
 ---
 
-## Step 1 — HelmRepository
-> Equivalent to: **ArgoCD → Settings → Connect Repo → Type: Helm → URL: https://charts.bitnami.com/bitnami**
+## Step 1 — Create App Folder in Your Repo
+
+```bash
+git clone https://github.com/<YOUR_USER>/flux-gitops.git
+cd flux-gitops
+
+mkdir -p clusters/production/flux-helm-lab
+```
+
+Your structure will become:
+
+```
+flux-gitops/
+└── clusters/
+    └── production/
+        ├── flux-system/          ← existing (do not touch)
+        └── flux-helm-lab/        ← new (your helm app lives here)
+            ├── 01-helmrepository.yaml
+            ├── 02-values-configmap.yaml
+            ├── 03-helmrelease.yaml
+            └── 04-kustomization.yaml
+```
+
+---
+
+## Step 2 — Create Manifests
+
+### clusters/production/flux-helm-lab/01-helmrepository.yaml
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1beta2
@@ -32,17 +61,7 @@ spec:
   interval: 10m
 ```
 
-```bash
-kubectl apply -f 01-helmrepository.yaml
-
-# Verify
-flux get sources helm -n flux-system
-```
-
----
-
-## Step 2 — Values ConfigMap
-> Equivalent to: **ArgoCD → source.helm.valueFiles: [values.yaml]**
+### clusters/production/flux-helm-lab/02-values-configmap.yaml
 
 ```yaml
 apiVersion: v1
@@ -73,14 +92,7 @@ data:
       enabled: false
 ```
 
-```bash
-kubectl apply -f 02-values-configmap.yaml
-```
-
----
-
-## Step 3 — HelmRelease
-> Equivalent to: **ArgoCD → New Application → chart: nginx, targetRevision: 22.4.3, Sync: Automatic, CreateNamespace: true**
+### clusters/production/flux-helm-lab/03-helmrelease.yaml
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta2
@@ -101,7 +113,7 @@ spec:
         namespace: flux-system
       interval: 10m
   install:
-    createNamespace: true       # syncOptions: CreateNamespace=true
+    createNamespace: true
     remediation:
       retries: 3
   upgrade:
@@ -116,39 +128,81 @@ spec:
       valuesKey: values.yaml
 ```
 
-```bash
-kubectl apply -f 03-helmrelease.yaml
-
-# Watch reconciliation
-flux get helmreleases -n flux-system
-
-# Verify pods
-kubectl get pods -n myhelm-nginx
-```
-
----
-
-## Step 4 — Kustomization
-> Equivalent to: **ArgoCD → spec.project: myproj + prune: false**
+### clusters/production/flux-helm-lab/04-kustomization.yaml
 
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: myproj-helmlab
+  name: flux-helm-lab
   namespace: flux-system
 spec:
   interval: 5m
-  prune: false                  # syncPolicy.automated.prune: false
+  prune: false
   sourceRef:
     kind: GitRepository
-    name: flux-system
+    name: flux-system          # References the GitRepository created during bootstrap
     namespace: flux-system
-  path: "./flux-helm-lab"
+  path: "./clusters/production/flux-helm-lab"
 ```
 
+---
+
+## Step 3 — Commit and Push
+
 ```bash
-kubectl apply -f 04-kustomization.yaml
+git add clusters/production/flux-helm-lab/
+git commit -m "Add nginx HelmRelease via Bitnami"
+git push origin main
+```
+
+Flux picks up the change automatically. To trigger immediately without waiting:
+
+```bash
+flux reconcile kustomization flux-system --with-source -n flux-system
+```
+
+---
+
+## Step 4 — Verify
+
+```bash
+# Check HelmRepository is fetched
+flux get sources helm -n flux-system
+# NAME       READY   STATUS
+# helmrepo   True    Fetched chart index
+
+# Check HelmRelease reconciled
+flux get helmreleases -n flux-system
+# NAME     READY   STATUS
+# myhelm   True    Release reconciliation succeeded
+
+# Check nginx pods
+kubectl get pods -n myhelm-nginx
+
+# Check service
+kubectl get svc -n myhelm-nginx
+```
+
+---
+
+## Step 5 — GitOps Change Flow
+
+To update values or chart version — never `kubectl apply` directly, always go through Git:
+
+```bash
+# Edit any manifest, e.g. bump replicaCount or chart version
+vi clusters/production/flux-helm-lab/02-values-configmap.yaml
+
+git add .
+git commit -m "Update nginx values"
+git push origin main
+
+# Force immediate reconciliation
+flux reconcile kustomization flux-helm-lab --with-source -n flux-system
+
+# Watch HelmRelease update
+flux get helmreleases -n flux-system --watch
 ```
 
 ---
@@ -156,19 +210,19 @@ kubectl apply -f 04-kustomization.yaml
 ## Useful Commands
 
 ```bash
-# Force immediate sync (like ArgoCD "Sync Now")
+# View all Flux resources
+flux get all -n flux-system
+
+# Force reconcile HelmRelease only
 flux reconcile helmrelease myhelm -n flux-system
 
-# Suspend auto-sync (like disabling ArgoCD automated sync)
+# Suspend auto-sync
 flux suspend helmrelease myhelm -n flux-system
 
 # Resume auto-sync
 flux resume helmrelease myhelm -n flux-system
 
-# View all Flux resources
-flux get all -n flux-system
-
-# View logs
+# View Flux logs
 flux logs -n flux-system --follow
 
 # Describe HelmRelease events
