@@ -119,7 +119,7 @@ spec:
 ```
 
 ```bash
-mkdir -p clusters/production/sources
+
 # create the file above, then:
 git add clusters/production/sources/
 git commit -m "feat: add GitRepository source for manifest-repo"
@@ -311,68 +311,6 @@ flux resume kustomization my-app-production
 
 ---
 
-## Step 6: Diff Before Apply
-
-```bash
-# See what would change in staging right now
-flux diff kustomization my-app-staging
-
-# Render locally without touching the cluster
-kubectl kustomize manifest-repo/overlays/staging
-```
-
----
-
-## Step 7: Notifications (Optional)
-
-```bash
-kubectl create secret generic slack-webhook \
-  -n flux-system \
-  --from-literal=address=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-```
-
-**`clusters/production/notifications/provider.yaml`**
-
-```yaml
-apiVersion: notification.toolkit.fluxcd.io/v1beta3
-kind: Provider
-metadata:
-  name: slack
-  namespace: flux-system
-spec:
-  type: slack
-  channel: "#gitops-alerts"
-  secretRef:
-    name: slack-webhook
-```
-
-**`clusters/production/notifications/alert.yaml`**
-
-```yaml
-apiVersion: notification.toolkit.fluxcd.io/v1beta3
-kind: Alert
-metadata:
-  name: my-app-alerts
-  namespace: flux-system
-spec:
-  summary: "manifest-repo reconciliation"
-  providerRef:
-    name: slack
-  eventSeverity: info
-  eventSources:
-    - kind: Kustomization
-      name: "my-app-dev"
-    - kind: Kustomization
-      name: "my-app-staging"
-    - kind: Kustomization
-      name: "my-app-production"
-```
-
-```bash
-git add clusters/production/notifications/
-git commit -m "feat: add Slack notifications"
-git push
-```
 
 ---
 
@@ -392,24 +330,5 @@ kubectl logs -n flux-system deploy/kustomize-controller -f
 
 ---
 
-## Troubleshooting
 
-| Symptom | Diagnosis | Fix |
-|---|---|---|
-| Namespaces not created | `flux get ks flux-system` | Confirm file is under `clusters/production/`, not `clusters/kustomize-demo/` |
-| `manifest-repo` source not ready | `flux get sources git` | Token in `flux-system` secret needs `api` + `write_repository` scopes |
-| Kustomization `Not Ready` | `flux get ks my-app-dev` | Read `MESSAGE` — usually a wrong path or missing namespace |
-| Staging blocked | `flux get ks my-app-dev` | Fix dev first — `dependsOn` holds staging until dev is healthy |
-| Resources not pruned | `kubectl get all -n dev` | Confirm `prune: true` and `targetNamespace` matches overlay |
-| Nothing reconciling at all | `flux get ks flux-system` | Check `gotk-sync.yaml` — its `path:` must match where your files are |
 
----
-
-## Two-Repo Reference
-
-| Repo | Path that matters | Purpose |
-|---|---|---|
-| `flux-gitops` | `clusters/production/` | Flux config — sources, Kustomizations, alerts |
-| `manifest-repo` | `overlays/`, `base/` | App manifests — what gets deployed |
-
-> **Root cause of the earlier issue:** files in `clusters/kustomize-demo/` are invisible to Flux because `gotk-sync.yaml` points to `clusters/production/`. Always add new config under `clusters/production/`.
