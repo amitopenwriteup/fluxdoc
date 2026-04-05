@@ -99,10 +99,10 @@ kubectl get namespaces | grep -E 'dev|staging|production'
 ## Step 1: Declare the GitRepository Source
 
 Tell Flux's `source-controller` to watch `manifest-repo`.
-
+```
 mkdir -p clusters/production/sources
-**`clusters/production/sources/gitrepository.yaml`**
-
+vi clusters/production/sources/gitrepository.yaml
+```
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
