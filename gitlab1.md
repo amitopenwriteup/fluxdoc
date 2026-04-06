@@ -4,9 +4,9 @@ Here's your Lab 1 content formatted in Markdown:
 # Lab 1: Git Basics
 
 ## 1. Login as Root User
-
-```
 sudo su -
+```
+
 ```
 
 > Enter the same password used for your Ubuntu server when prompted.
