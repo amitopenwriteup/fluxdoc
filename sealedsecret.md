@@ -1,6 +1,9 @@
 # Sealed Secrets + FluxCD Lab Guide
 > Encrypt Kubernetes Secrets with Bitnami Sealed Secrets and GitOps Automation via Flux
 
+
+https://fluxcd.io/flux/guides/sealed-secrets/
+
 **3 Labs · Production-Ready**
 
 ---
