@@ -3,8 +3,7 @@
 ## 1. Generate SSH Key Pair
 
 ```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
+ssh-keygen -t ed25519
 
 >  **Note:** Do **not** use `-t rsa`. Use `ed25519` — it is faster, more secure, and modern.
 
