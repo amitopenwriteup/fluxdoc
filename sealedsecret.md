@@ -34,20 +34,26 @@ flux-gitops/
 
 ```
 flux-gitops/
+├── pub-sealed-secrets.pem               ← public cert (safe to commit)
 └── clusters/
     └── production/
         ├── apps/
         ├── flux-system/
-        │   ├── gotk-components.yaml
-        │   ├── gotk-sync.yaml
-        │   └── kustomization.yaml
-        ├── infrastructure/              ← NEW: Sealed Secrets controller
+        │   ├── gotk-components.yaml     ← DO NOT EDIT
+        │   ├── gotk-sync.yaml           ← DO NOT EDIT
+        │   └── kustomization.yaml       ← DO NOT EDIT
+        ├── infrastructure/              ← NEW: Sealed Secrets controller manifests
         │   ├── sealed-secrets-helmrepo.yaml
         │   ├── sealed-secrets-release.yaml
         │   └── kustomization.yaml
-        └── secrets/                     ← NEW: SealedSecret manifests
-            └── db-credentials-sealed.yaml
+        ├── infrastructure-sync.yaml     ← NEW: Flux Kustomization watching infrastructure/
+        ├── secrets/                     ← NEW: SealedSecret manifests
+        │   ├── db-credentials-sealed.yaml
+        │   └── kustomization.yaml
+        └── secrets-sync.yaml            ← NEW: Flux Kustomization watching secrets/
 ```
+
+> ⚠️ **Never edit `flux-system/kustomization.yaml`** — it is managed by Flux bootstrap. Adding paths there causes duplicate resource errors. All new resources are wired in via standalone Flux `Kustomization` objects instead.
 
 ### How Sealed Secrets Works
 
@@ -157,21 +163,27 @@ EOF
 
 ---
 
-### Step 5 — Wire Infrastructure into the Existing Root Kustomization
+### Step 5 — Create a Standalone Flux Kustomization for Infrastructure
 
-Your existing `clusters/production/flux-system/kustomization.yaml` already lists `gotk-components.yaml` and `gotk-sync.yaml`. Add the infrastructure path so Flux picks it up.
+> ⚠️ Do **NOT** edit `flux-system/kustomization.yaml`. Adding paths there causes a duplicate resource error because `gotk-sync.yaml` already watches the `clusters/production/` tree. Instead, create a standalone Flux `Kustomization` resource at the `clusters/production/` level.
 
-Edit `clusters/production/flux-system/kustomization.yaml`:
-
-```yaml
-# clusters/production/flux-system/kustomization.yaml
+```bash
+cat > clusters/production/infrastructure-sync.yaml <<EOF
 ---
-apiVersion: kustomize.config.k8s.io/v1beta1
+apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
-resources:
-  - gotk-components.yaml
-  - gotk-sync.yaml
-  - ../infrastructure           # ADD THIS LINE — points to your new infrastructure folder
+metadata:
+  name: infrastructure
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./clusters/production/infrastructure   # Points to your infrastructure folder
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system                           # Reuses the GitRepository Flux bootstrap created
+    namespace: flux-system
+EOF
 ```
 
 ---
@@ -180,7 +192,7 @@ resources:
 
 ```bash
 git add clusters/production/infrastructure/
-git add clusters/production/flux-system/kustomization.yaml
+git add clusters/production/infrastructure-sync.yaml
 git commit -m 'feat: add Sealed Secrets controller via Flux HelmRelease'
 git push
 
@@ -249,7 +261,8 @@ git push
 ### ✅ Lab 1 Checklist
 
 - [x] `clusters/production/infrastructure/` created with HelmRepository + HelmRelease
-- [x] `clusters/production/flux-system/kustomization.yaml` updated to include `../infrastructure`
+- [x] `clusters/production/infrastructure-sync.yaml` created as standalone Flux Kustomization
+- [x] `flux-system/kustomization.yaml` left untouched (do not edit bootstrap files)
 - [x] Sealed Secrets controller pod running in `flux-system`
 - [x] `kubeseal` CLI installed and verified
 - [x] Public certificate fetched and committed to Git
@@ -476,30 +489,13 @@ EOF
 
 ---
 
-### Step 3 — Wire Secrets Sync into the Root Kustomization
+### Step 3 — Commit and Push
 
-Update `clusters/production/flux-system/kustomization.yaml` to also include the secrets sync:
-
-```yaml
-# clusters/production/flux-system/kustomization.yaml
----
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - gotk-components.yaml
-  - gotk-sync.yaml
-  - ../infrastructure          # Sealed Secrets controller (added in Lab 1)
-  - ../secrets-sync.yaml       # ADD THIS LINE — Flux Kustomization for secrets
-```
-
----
-
-### Step 4 — Commit and Push
+The `secrets-sync.yaml` sits at `clusters/production/` level. Because `gotk-sync.yaml` already watches this path, Flux will automatically pick it up — no changes to `flux-system/kustomization.yaml` needed.
 
 ```bash
 git add clusters/production/secrets/kustomization.yaml
 git add clusters/production/secrets-sync.yaml
-git add clusters/production/flux-system/kustomization.yaml
 git commit -m 'feat: add secrets Kustomization for Sealed Secrets'
 git push
 
@@ -510,7 +506,7 @@ flux reconcile kustomization flux-system --with-source
 
 ---
 
-### Step 5 — Watch the Reconciliation
+### Step 4 — Watch the Reconciliation
 
 ```bash
 # Watch all Kustomizations
@@ -534,7 +530,7 @@ kubectl get secret db-credentials -n production \
 
 ---
 
-### Step 6 — Inspect the Controller Logs
+### Step 5 — Inspect the Controller Logs
 
 ```bash
 # View Sealed Secrets controller logs
@@ -548,7 +544,7 @@ kubectl logs -n flux-system \
 
 ---
 
-### Step 7 — Key Rotation (Production Practice)
+### Step 6 — Key Rotation (Production Practice)
 
 The controller automatically generates a new sealing key every **30 days**. Old keys are retained so existing `SealedSecrets` can still be decrypted.
 
@@ -574,7 +570,7 @@ git push
 
 - [x] `clusters/production/secrets/kustomization.yaml` created listing all SealedSecrets
 - [x] `clusters/production/secrets-sync.yaml` Flux Kustomization created (no `decryption` block)
-- [x] `clusters/production/flux-system/kustomization.yaml` updated to include `../secrets-sync.yaml`
+- [x] `flux-system/kustomization.yaml` left untouched — Flux picks up `secrets-sync.yaml` automatically
 - [x] Flux successfully applied the `SealedSecret`
 - [x] Controller logs confirm `Unsealed` event
 - [x] Plain `Secret` verified in the `production` namespace
@@ -592,18 +588,21 @@ flux-gitops/
     └── production/
         ├── apps/                        ← your workloads (unchanged)
         ├── flux-system/
-        │   ├── gotk-components.yaml
-        │   ├── gotk-sync.yaml
-        │   └── kustomization.yaml       ← updated: includes infrastructure + secrets-sync
-        ├── infrastructure/              ← Sealed Secrets Helm controller
+        │   ├── gotk-components.yaml     ← untouched (bootstrap generated)
+        │   ├── gotk-sync.yaml           ← untouched (bootstrap generated)
+        │   └── kustomization.yaml       ← untouched (bootstrap generated)
+        ├── infrastructure/              ← Sealed Secrets Helm manifests
         │   ├── sealed-secrets-helmrepo.yaml
         │   ├── sealed-secrets-release.yaml
         │   └── kustomization.yaml
+        ├── infrastructure-sync.yaml     ← Flux Kustomization → watches infrastructure/
         ├── secrets/                     ← SealedSecret manifests (safe to commit)
         │   ├── db-credentials-sealed.yaml
         │   └── kustomization.yaml
-        └── secrets-sync.yaml            ← Flux Kustomization watching secrets/
+        └── secrets-sync.yaml            ← Flux Kustomization → watches secrets/
 ```
+
+> **Why this works:** `gotk-sync.yaml` (created by Flux bootstrap) watches `./clusters/production/` — so any `.yaml` file committed there is automatically picked up by Flux. `infrastructure-sync.yaml` and `secrets-sync.yaml` live there and are loaded as Flux `Kustomization` objects, which then point Flux at their respective subdirectories. No editing of bootstrap files needed.
 
 ---
 
