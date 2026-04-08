@@ -86,7 +86,11 @@ Creating cluster "kind" ...
  ✓ Installing StorageClass
  ✓ Joining worker nodes
 ```
-
+```
+curl -LO https://dl.k8s.io/release/v1.35.1/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+```
 ---
 
 ## Set kubectl Context
