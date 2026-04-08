@@ -6,11 +6,11 @@
 
 In this lab, you will create a CI/CD pipeline that installs `cowsay`, generates a text output file, and stores it as a **GitLab artifact** that can be downloaded after the job completes.
 ---
+---
 sudo su
 #Cloud@123$
 vi /etc/sudoers
 gitlab-runner  ALL=(ALL) NOPASSWD: ALL
-
 # esc :wq!
 ---
 
