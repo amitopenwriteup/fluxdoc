@@ -5,6 +5,14 @@
 ## Overview
 
 In this lab, you will create a CI/CD pipeline that installs `cowsay`, generates a text output file, and stores it as a **GitLab artifact** that can be downloaded after the job completes.
+---
+sudo su
+#Cloud@123$
+vi /etc/sudoers
+gitlab-runner  ALL=(ALL) NOPASSWD: ALL
+
+# esc :wq!
+---
 
 ---
 
@@ -27,8 +35,8 @@ say-hello:
   tags:
     - myrunner
   before_script:
-    - apt-get update -y
-    - apt-get install -y cowsay
+    - sudo apt-get update -y
+    - sudo apt-get install -y cowsay
   script:
     - /usr/games/cowsay "hello from GitLab CI" > output.txt
   artifacts:
@@ -36,7 +44,7 @@ say-hello:
       - output.txt
     expire_in: 1 hour
   after_script:
-    - apt-get remove -y cowsay
+    - sudo apt-get remove -y cowsay
 ```
 
 > Save and exit `vi` by pressing `Esc`, then typing `:wq` and pressing `Enter`.
