@@ -12,7 +12,7 @@ Execute the below script on the host to install the `kind` command.
 ### Switch to root user
 ```bash
 sudo su
-# Password: same Nte#25
+# Password: Cloud@123$
 ````
 
 ### Installation Script
