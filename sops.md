@@ -91,7 +91,7 @@ Define which files SOPS encrypts and which age public key to use.
 In the root of your ` flux-gitops` repository:
 
 ```bash
-#  flux-gitops1/.sops.yaml — commit this file to Git
+#  flux-gitops/.sops.yaml — commit this file to Git
 cat > .sops.yaml <<EOF
 creation_rules:
   - path_regex: .*/secrets/.*\.yaml$
