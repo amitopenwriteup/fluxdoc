@@ -366,11 +366,9 @@ Inspect events to confirm successful decryption.
 flux events --for Kustomization/secrets
 
 # Check the kustomize-controller logs for decryption activity
-kubectl logs -n flux-system -l app=kustomize-controller -f | grep -i sops
+kubectl logs -n flux-system -l app=kustomize-controller -f | grep -i secret
 
-# Expected log line:
-# {"level":"info","msg":"decrypted 1 Secret(s) using sops provider"}
-```
+
 
 ---
 
